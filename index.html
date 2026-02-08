@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Krishna Temp Mail Service</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<style>
+*{margin:0;padding:0;box-sizing:border-box;font-family:Segoe UI,sans-serif}
+body{background:#000;color:#00ff99}
+.container{max-width:900px;margin:auto;padding:20px;text-align:center}
+h1{color:red;text-shadow:0 0 10px red;margin-bottom:20px}
+h1 span{color:#00ff99;font-size:2.4rem}
+.card{background:#111;border:1px solid #00ff99;border-radius:12px;padding:20px;margin:20px 0;box-shadow:0 0 20px rgba(0,255,150,.3)}
+.email-box{background:#000;padding:15px;border-radius:8px;margin:10px 0;color:#0f0;word-break:break-all}
+.buttons button{margin:5px;padding:10px 15px;border:none;border-radius:6px;font-weight:bold;cursor:pointer;background:#00ff99;color:#000}
+.buttons button:hover{background:red;color:#fff}
+.danger{background:red!important;color:#fff}
+.timer{margin-top:10px;color:#ff4444}
+.inbox ul{list-style:none;text-align:left}
+.inbox li{background:#000;margin:10px 0;padding:10px;border-left:4px solid #00ff99}
+footer{margin-top:30px;color:#777}
+</style>
+</head>
+
+<body>
+<div class="container">
+
+<h1>WELCOME TO<br><span>KRISHNA TEMP MAIL SERVICE</span></h1>
+
+<div class="card">
+  <p>Temporary Email</p>
+  <div class="email-box" id="email">loading...</div>
+
+  <div class="buttons">
+    <button onclick="copyEmail()">Copy</button>
+    <button onclick="refreshInbox()">Refresh</button>
+    <button onclick="regenerateEmail()">Regenerate</button>
+    <button class="danger" onclick="deleteEmail()">Delete</button>
+  </div>
+
+  <div class="timer">
+    ⏳ Valid for: <span id="time">10:00</span>
+  </div>
+</div>
+
+<div class="card inbox">
+  <h2>📥 Inbox</h2>
+  <ul id="messages"><li>No messages yet</li></ul>
+</div>
+
+<footer>
+  <p>Contact: krishnakantvishwakrma396@gmail.com</p>
+  <p>© Krishna Temp Mail Service</p>
+</footer>
+
+</div>
+
+<script>
+/* ================= CONFIG ================= */
+const DOMAIN = "1secmail.com";
+const LIFETIME = 10 * 60 * 1000; // 10 minutes
+let timerInterval = null;
+
+/* ================= STORAGE ================= */
+function getStoredMail(){
+  try {
+    return JSON.parse(localStorage.getItem("krishna_temp_mail"));
+  } catch {
+    return null;
+  }
+}
+
+function setStoredMail(data){
+  localStorage.setItem("krishna_temp_mail", JSON.stringify(data));
+}
+
+function clearStoredMail(){
+  localStorage.removeItem("krishna_temp_mail");
+}
+
+/* ================= EMAIL ================= */
+function generateNewMail(){
+  const login = Math.random().toString(36).slice(2,10);
+  const expiresAt = Date.now() + LIFETIME;
+  const data = { login, domain: DOMAIN, expiresAt };
+  setStoredMail(data);
+  return data;
+}
+
+function loadMail(){
+  let data = getStoredMail();
+
+  if(!data || !data.login || Date.now() >= data.expiresAt){
+    data = generateNewMail();
+  }
+
+  document.getElementById("email").innerText =
+    `${data.login}@${data.domain}`;
+
+  startTimer(data.expiresAt);
+  refreshInbox();
+}
+
+/* ================= TIMER ================= */
+function startTimer(expiresAt){
+  clearInterval(timerInterval);
+
+  timerInterval = setInterval(()=>{
+    const diff = expiresAt - Date.now();
+
+    if(diff <= 0){
+      deleteEmail();
+      return;
+    }
+
+    const m = Math.floor(diff / 60000);
+    const s = Math.floor((diff % 60000) / 1000);
+
+    document.getElementById("time").innerText =
+      `${m}:${s < 10 ? "0" : ""}${s}`;
+  }, 1000);
+}
+
+/* ================= ACTIONS ================= */
+function regenerateEmail(){
+  clearStoredMail();
+  loadMail();
+}
+
+function deleteEmail(){
+  clearInterval(timerInterval);
+  clearStoredMail();
+  document.getElementById("email").innerText = "deleted";
+  document.getElementById("time").innerText = "00:00";
+  document.getElementById("messages").innerHTML =
+    "<li>Email deleted</li>";
+}
+
+function copyEmail(){
+  const text = document.getElementById("email").innerText;
+  if(text && text !== "deleted"){
+    navigator.clipboard.writeText(text);
+    alert("Email copied!");
+  }
+}
+
+/* ================= INBOX ================= */
+async function refreshInbox(){
+  const data = getStoredMail();
+  if(!data || Date.now() >= data.expiresAt) return;
+
+  const ul = document.getElementById("messages");
+  ul.innerHTML = "<li>Loading...</li>";
+
+  try {
+    const res = await fetch(
+      `https://www.1secmail.com/api/v1/?action=getMessages&login=${data.login}&domain=${data.domain}`
+    );
+    const mails = await res.json();
+
+    ul.innerHTML = "";
+
+    if(!mails.length){
+      ul.innerHTML = "<li>No messages yet</li>";
+      return;
+    }
+
+    mails.forEach(m=>{
+      const li = document.createElement("li");
+      li.innerHTML =
+        `<strong>From:</strong> ${m.from}<br>
+         <strong>Subject:</strong> ${m.subject}`;
+      ul.appendChild(li);
+    });
+
+  } catch {
+    ul.innerHTML = "<li>Error loading inbox</li>";
+  }
+}
+
+/* ================= INIT ================= */
+loadMail();
+</script>
+
+</body>
+</html>
